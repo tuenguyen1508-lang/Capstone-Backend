@@ -59,6 +59,8 @@ Table question_config {
 
 Table participants {
   id uuid [primary key]
+  survey_id uuid
+  code string
   name string
   school string
   grade string
@@ -89,6 +91,7 @@ Ref: surveys.created_by > users.id
 Ref: questions.survey_id > surveys.id
 Ref: question_options.question_id > questions.id
 Ref: question_config.question_id - questions.id
+Ref: participants.survey_id > surveys.id
 Ref: attempts.survey_id > surveys.id
 Ref: attempts.participant_id > participants.id
 Ref: answers.attempt_id > attempts.id

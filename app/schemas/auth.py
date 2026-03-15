@@ -16,6 +16,11 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     email: Optional[str] = None
 
+
+class LoginRequest(BaseModel):
+    username: EmailStr
+    password: str = Field(..., max_length=72, description="Password must be at most 72 characters long")
+
 # User Schemas
 class UserBase(BaseModel):
     email: EmailStr

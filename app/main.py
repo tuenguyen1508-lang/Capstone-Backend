@@ -1,9 +1,15 @@
 import os
-from fastapi import FastAPI
+from typing import Any
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from dotenv import load_dotenv
 
 from app.database import engine, Base
-from app.routers import auth
+import app.models
+from app.routers import auth, upload
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -14,6 +20,53 @@ app = FastAPI(
     title=os.getenv("APP_NAME", "Capstone Backend"),
     version="0.1.0"
 )
+
+
+def _extract_error_message(detail: Any, default: str) -> str:
+    if isinstance(detail, str) and detail.strip():
+        return detail
+    if isinstance(detail, dict):
+        message = detail.get("message")
+        if isinstance(message, str) and message.strip():
+            return message
+    return default
+
+
+@app.exception_handler(HTTPException)
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(_: Request, exc: StarletteHTTPException):
+    message = _extract_error_message(exc.detail, "Request failed")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "status": False,
+            "message": message,
+        },
+        headers=exc.headers,
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={
+            "status": False,
+            "message": "Validation error",
+            "errors": exc.errors(),
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(_: Request, __: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={
+            "status": False,
+            "message": "Internal server error",
+        },
+    )
 
 app.include_router(auth.router)
 
