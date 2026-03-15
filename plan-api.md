@@ -80,19 +80,29 @@ Response
 
 API để upload ảnh câu hỏi / đáp án lên Cloudflare R2.
 
-POST `/api/upload/image`
+POST `/upload/file`
+
+POST `/upload/image`
 
 Auth: Bearer Token
 
 Form Data
 
-    file: binary image
+    file: binary file/image
+
+Query Params
+
+    folder: uploads | images (optional)
 
 Response
 
 ``` json
 {
-  "url": "https://pub-xxx.r2.dev/questions/image.jpg"
+  "filename": "image.jpg",
+  "key": "images/abc123...jpg",
+  "url": "https://pub-xxx.r2.dev/images/abc123...jpg",
+  "content_type": "image/jpeg",
+  "size": 12345
 }
 ```
 
