@@ -283,14 +283,17 @@ Lưu ý: Không trả về `correct_angle`.
 
 ------------------------------------------------------------------------
 
-## Start Survey
+## Participant Submit (Create/Update)
 
-POST `/api/public/surveys/{token}/start`
+POST `/api/public/participants/submit`
 
 Payload
 
 ``` json
 {
+  "survey_id": "uuid",
+  "participant_id": "uuid (optional)",
+  "code": "01",
   "name": "Jiara Martins",
   "school": "Ambience Public School",
   "grade": "6",
@@ -298,11 +301,74 @@ Payload
 }
 ```
 
+Rules
+
+-   Bắt buộc có `survey_id` để xác định học sinh tham gia survey nào.
+-   `participant_id` có giá trị: cập nhật hồ sơ participant.
+-   `participant_id` rỗng: tạo mới (hoặc upsert theo cặp `survey_id` + `code`).
+
+Response
+
+``` json
+{
+  "id": "uuid",
+  "survey_id": "uuid",
+  "participant_id": "uuid (optional)",
+  "code": "01",
+  "name": "Jiara Martins",
+  "school": "Ambience Public School",
+  "grade": "6",
+  "dob": "2012-05-15T00:00:00Z"
+}
+```
+
+------------------------------------------------------------------------
+
+## Get Participant (Read)
+
+GET `/api/public/surveys/{survey_id}/participants/{participant_id}`
+
+Hoặc tra theo code:
+
+GET `/api/public/surveys/{survey_id}/participants/by-code/{code}`
+
 Response
 
 ``` json
 {
   "participant_id": "uuid",
+  "survey_id": "uuid",
+  "code": "01",
+  "name": "Jiara Martins",
+  "school": "Ambience Public School",
+  "grade": "6",
+  "dob": "2012-05-15T00:00:00Z"
+}
+```
+
+------------------------------------------------------------------------
+
+## Delete Participant
+
+DELETE `/api/public/surveys/{survey_id}/participants/{participant_id}`
+
+------------------------------------------------------------------------
+
+## Start Attempt
+
+POST `/api/public/surveys/{survey_id}/attempts/start`
+
+Payload
+
+``` json
+{
+  "participant_id": "uuid"
+}
+
+Response
+
+``` json
+{
   "attempt_id": "uuid",
   "start_time": "timestamp"
 }

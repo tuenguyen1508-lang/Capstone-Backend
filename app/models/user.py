@@ -21,6 +21,7 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     roles = relationship("Role", secondary=user_roles, back_populates="users")
+    created_surveys = relationship("Survey", back_populates="created_by_user")
 
 
 class Role(Base):
