@@ -8,7 +8,6 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from dotenv import load_dotenv
 
 from app.database import engine, Base
-import app.models
 from app.routers import auth, upload
 
 # Create database tables
@@ -69,6 +68,7 @@ async def unhandled_exception_handler(_: Request, __: Exception):
     )
 
 app.include_router(auth.router)
+app.include_router(upload.router)
 
 @app.get("/health")
 def health_check():

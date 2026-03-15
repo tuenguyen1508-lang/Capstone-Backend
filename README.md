@@ -129,6 +129,18 @@ Tạo file `.env` ở root project:
     ALGORITHM=HS256
     ACCESS_TOKEN_EXPIRE_MINUTES=30
 
+    # Cloudflare R2
+    CLOUDFLARE_R2_ENDPOINT=https://your_account_id.r2.cloudflarestorage.com
+    CLOUDFLARE_R2_ACCESS_KEY_ID=your_r2_access_key_id
+    CLOUDFLARE_R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
+    CLOUDFLARE_R2_BUCKET_NAME=your_bucket_name
+    # Optional: Public domain (custom domain or r2.dev domain) to return public URLs
+    CLOUDFLARE_R2_PUBLIC_URL=https://your-public-r2-domain
+    # Optional: default 10MB
+    CLOUDFLARE_R2_MAX_FILE_SIZE_BYTES=10485760
+
+    # Backward compatibility (optional): you can still use old keys R2_*
+
 ------------------------------------------------------------------------
 
 # 🐘 Start PostgreSQL (Docker)
@@ -224,6 +236,50 @@ Bạn có thể test API theo flow:
     Login
        ↓
     Get Current User (/me)
+       ↓
+    Upload File (/upload/file)
+
+------------------------------------------------------------------------
+
+# ☁️ Upload API (Cloudflare R2)
+
+Các endpoint upload yêu cầu **Bearer Token**.
+
+## Upload any file
+
+POST `/upload/file`
+
+Form Data
+
+    file: binary file
+
+Query Params
+
+    folder: uploads (optional)
+
+Response
+
+``` json
+{
+  "filename": "example.pdf",
+  "key": "uploads/abc123...pdf",
+  "url": "https://your-public-r2-domain/uploads/abc123...pdf",
+  "content_type": "application/pdf",
+  "size": 12345
+}
+```
+
+## Upload image only
+
+POST `/upload/image`
+
+Form Data
+
+    file: binary image
+
+Query Params
+
+    folder: images (optional)
 
 ------------------------------------------------------------------------
 
