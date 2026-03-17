@@ -4,6 +4,7 @@ Table users {
   password_hash string
   created_at timestamp
 }
+
 Table roles {
   id integer [primary key]
   name string
