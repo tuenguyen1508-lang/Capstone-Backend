@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, Date, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -34,6 +34,7 @@ class Question(Base):
     type = Column(String, nullable=False)
     title = Column(String, nullable=False)
     question_image = Column(String, nullable=True)
+    is_visible = Column(Boolean, nullable=False, default=False)
     order_index = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -96,6 +97,7 @@ class Attempt(Base):
     end_time = Column(DateTime, nullable=True)
     status = Column(String, nullable=False, default="pending")
     score = Column(Float, nullable=True)
+    completion_percentage = Column(Float, nullable=False, default=0)
 
     survey = relationship("Survey", back_populates="attempts")
     participant = relationship("Participant", back_populates="attempts")

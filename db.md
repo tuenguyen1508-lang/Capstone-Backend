@@ -2,6 +2,7 @@ Table users {
   id uuid [primary key]
   email string
   password_hash string
+  role_id integer
   created_at timestamp
 }
 
@@ -10,15 +11,6 @@ Table roles {
   name string
   code string
   created_at timestamp
-}
-
-Table user_roles {
-  user_id uuid
-  role_id integer
-
-  indexes {
-    (user_id, role_id) [pk]
-  }
 }
 
 Table surveys {
@@ -38,6 +30,7 @@ Table questions {
   type string // 'mcq' or 'arrow'
   title string
   question_image string
+  is_visible boolean
   order_index integer
   created_at timestamp
 }
@@ -76,6 +69,7 @@ Table attempts {
   end_time timestamp
   status string
   score float
+  completion_percentage float
 }
 
 Table answers {
@@ -97,5 +91,4 @@ Ref: attempts.participant_id > participants.id
 Ref: answers.attempt_id > attempts.id
 Ref: answers.question_id > questions.id
 Ref: answers.selected_option_id > question_options.id
-Ref: user_roles.user_id > users.id
-Ref: user_roles.role_id > roles.id
+Ref: users.role_id > roles.id

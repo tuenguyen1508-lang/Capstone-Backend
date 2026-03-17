@@ -31,8 +31,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=f"Role {user.role_code} does not exist in the database. Please seed the roles first.")
 
     hashed_password = get_password_hash(user.password)
-    new_user = User(email=user.email, password_hash=hashed_password)
-    new_user.roles.append(db_role)
+    new_user = User(email=user.email, password_hash=hashed_password, role_id=db_role.id)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)

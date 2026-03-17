@@ -1,5 +1,5 @@
 from app.models.survey import Answer, Attempt, Participant, Question, QuestionConfig, QuestionOption, Survey
-from app.models.user import Role, User, user_roles
+from app.models.user import Role, User
 
 __all__ = [
     "Answer",
@@ -11,5 +11,4 @@ __all__ = [
     "Role",
     "Survey",
     "User",
-    "user_roles",
 ]

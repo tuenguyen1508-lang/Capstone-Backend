@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field
 from uuid import UUID
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 from enum import Enum
 
 class RoleCodeEnum(str, Enum):
@@ -40,7 +40,7 @@ class RoleResponse(BaseModel):
 class UserResponse(UserBase):
     id: UUID
     created_at: datetime
-    roles: List[RoleResponse] = []
+    role: RoleResponse
 
     class Config:
         from_attributes = True
