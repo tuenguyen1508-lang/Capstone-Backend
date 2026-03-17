@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Column, Date, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -79,7 +79,7 @@ class Participant(Base):
     name = Column(String, nullable=False)
     school = Column(String, nullable=True)
     grade = Column(String, nullable=True)
-    dob = Column(DateTime, nullable=True)
+    dob = Column(Date, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     survey = relationship("Survey", back_populates="participants")

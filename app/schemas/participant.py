@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from uuid import UUID
-from datetime import date, datetime
+from datetime import date
 
 class ParticipantSubmitRequest(BaseModel):
     survey_id: UUID
