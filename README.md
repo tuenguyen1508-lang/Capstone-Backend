@@ -1,14 +1,13 @@
 # Capstone Backend - FastAPI Project
 
-Backend service được xây dựng bằng **FastAPI**, sử dụng **PostgreSQL**
-làm cơ sở dữ liệu (chạy qua Docker) và **JWT Authentication** để xác
-thực người dùng.
+The backend service is built with FastAPI, uses PostgreSQL as the database (running via Docker), and implements JWT Authentication for user verification.
+
 
 ------------------------------------------------------------------------
 
 # 📌 Prerequisites
 
-Để chạy dự án, máy của bạn cần cài đặt:
+To run project, you need to install:
 
 -   **Python 3.8+**
 -   **Docker**
@@ -16,29 +15,29 @@ thực người dùng.
 
 ------------------------------------------------------------------------
 
-# 🐳 Cài đặt Docker (Nếu chưa có)
+# 🐳 Install Docker 
 
 ### Windows / macOS
 
-1.  Tải **Docker Desktop**\
+1.  Download **Docker Desktop**\
     https://www.docker.com/products/docker-desktop/
 
-2.  Cài đặt theo hướng dẫn.
+2.  Install with the guidance
 
-3.  Mở **Docker Desktop** và chờ trạng thái:
+3.  Open **Docker Desktop** and wait for the status:
 
 ```{=html}
 <!-- -->
 ```
     Engine Running
 
-4.  Nếu Windows yêu cầu, hãy cài **WSL2**.
+4.  If Window requires, install **WSL2**.
 
 ------------------------------------------------------------------------
 
 ### Linux
 
-Làm theo hướng dẫn chính thức:
+Do by the guidance below:
 
 https://docs.docker.com/engine/install/
 
@@ -46,7 +45,7 @@ https://docs.docker.com/engine/install/
 
 # 🏗 Project Structure
 
-Dự án được tổ chức theo kiến trúc chuẩn của **FastAPI**.
+Project is organised by **FastAPI** structure.
 
     Capstone-Backend
     │
@@ -76,9 +75,9 @@ Dự án được tổ chức theo kiến trúc chuẩn của **FastAPI**.
 
 # 🚀 Run Project
 
-## 1️⃣ Tạo Virtual Environment
+## 1️⃣ Create Virtual Environment
 
-Mở terminal tại thư mục project.
+Open terminal in project folder.
 
 ``` bash
 python -m venv venv
@@ -86,7 +85,7 @@ python -m venv venv
 
 ------------------------------------------------------------------------
 
-## 2️⃣ Kích hoạt môi trường ảo
+## 2️⃣ Activate virtual environment
 
 ### Windows
 
@@ -102,7 +101,7 @@ source venv/bin/activate
 
 ------------------------------------------------------------------------
 
-## 3️⃣ Cài đặt dependencies
+## 3️⃣ Install dependencies
 
 ``` bash
 pip install -r requirements.txt
@@ -112,7 +111,7 @@ pip install -r requirements.txt
 
 # ⚙️ Environment Variables
 
-Tạo file `.env` ở root project:
+Create file `.env` within root project:
 
     APP_NAME="Capstone Backend"
     APP_ENV=development
@@ -145,55 +144,61 @@ Tạo file `.env` ở root project:
 
 # 🐘 Start PostgreSQL (Docker)
 
-Chạy database bằng Docker:
+Run database by Docker:
 
 ``` bash
 docker-compose up -d
 ```
 
-Nếu bạn thay đổi password trong `.env`, hãy reset volume:
+If you change password within `.env`, please reset volume:
 
 ``` bash
 docker-compose down -v
 docker-compose up -d
 ```
 
-Khi container **capstone_db** hiển thị `Started` nghĩa là database đã
-chạy thành công.
+If container **capstone_db** displays `Started`, database runs successfully.
 
 ------------------------------------------------------------------------
 
 # ▶️ Start FastAPI Server
 
-Chạy server:
+Run server:
 
 ``` bash
 uvicorn app.main:app --reload
 ```
 
-Server sẽ chạy tại:
+Server will runs in:
 
     http://127.0.0.1:8000
 
-FastAPI sẽ tự động tạo các bảng:
+FastAPI automatically creates tables:
 
 -   users
 -   roles
 -   user_roles
+-   surveys
+-   questions
+-   question_options
+-   question_config
+-   participants
+-   attempts
+-   answers
 
 ------------------------------------------------------------------------
 
 # 🗄 Init Role Data (Important)
 
-Hệ thống yêu cầu **Role phải tồn tại trước khi đăng ký user**.
+System requires **The role must already exist before a user can be registered**.
 
-Kết nối vào PostgreSQL bằng:
+Connect to PostgreSQL by:
 
--   **pgAdmin**
+-   **HeidiSQL**
 -   **DBeaver**
 -   **DataGrip**
 
-Thông tin kết nối:
+Information connected:
 
     Host: localhost
     Port: 5432
@@ -201,7 +206,7 @@ Thông tin kết nối:
     User: postgres
     Password: postgres
 
-Sau đó chạy SQL:
+Runs SQL:
 
 ``` sql
 INSERT INTO roles (name, code, created_at)
@@ -215,7 +220,7 @@ VALUES ('Administrator', 'ADMIN', NOW());
 
 # 📖 API Documentation
 
-Sau khi server chạy, truy cập:
+After server runs, access:
 
 ### Swagger UI
 
@@ -229,7 +234,7 @@ http://127.0.0.1:8000/redoc
 
 # 🔑 Test Flow
 
-Bạn có thể test API theo flow:
+Test API:
 
     Register
        ↓
@@ -243,7 +248,7 @@ Bạn có thể test API theo flow:
 
 # ☁️ Upload API (Cloudflare R2)
 
-Các endpoint upload yêu cầu **Bearer Token**.
+Endpoint upload requires **Bearer Token**.
 
 ## Upload any file
 
