@@ -1,16 +1,9 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Table
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.database import Base
-
-user_roles = Table(
-    "user_roles",
-    Base.metadata,
-    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True),
-    Column("role_id", Integer, ForeignKey("roles.id"), primary_key=True),
-)
 
 class User(Base):
     __tablename__ = "users"
@@ -18,9 +11,10 @@ class User(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
+    role_id = Column(Integer, ForeignKey("roles.id"), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    roles = relationship("Role", secondary=user_roles, back_populates="users")
+    role = relationship("Role", back_populates="users")
     created_surveys = relationship("Survey", back_populates="created_by_user")
 
 
@@ -32,4 +26,4 @@ class Role(Base):
     code = Column(String, unique=True, index=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    users = relationship("User", secondary=user_roles, back_populates="roles")
+    users = relationship("User", back_populates="role")

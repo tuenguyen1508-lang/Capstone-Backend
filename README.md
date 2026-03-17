@@ -177,7 +177,6 @@ FastAPI automatically creates tables:
 
 -   users
 -   roles
--   user_roles
 -   surveys
 -   questions
 -   question_options

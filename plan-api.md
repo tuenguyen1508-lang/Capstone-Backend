@@ -17,7 +17,7 @@ Payload
 {
   "email": "researcher@test.com",
   "password": "123456",
-  "role": "RESEARCHER"
+  "role_code": "RESEARCHER"
 }
 ```
 
@@ -69,7 +69,11 @@ Response
 {
   "id": "uuid",
   "email": "researcher@test.com",
-  "roles": ["ADMIN"]
+  "role": {
+    "id": 1,
+    "name": "Administrator",
+    "code": "ADMIN"
+  }
 }
 ```
 
@@ -115,7 +119,14 @@ Auth: Bearer Token (ADMIN / RESEARCHER)
 
 ## Get Surveys
 
-GET `/api/surveys`
+GET `/surveys`
+
+Auth: Bearer Token
+
+Behavior
+
+- Use `sub` in JWT to resolve current user.
+- Return only surveys created by current user (`created_by = current_user.id`).
 
 Response
 
@@ -137,16 +148,53 @@ Response
 
 ## Create Survey
 
-POST `/api/surveys`
+POST `/surveys`
 
 Payload
 
 ``` json
 {
+  "id": "survey_uuid_optional",
   "name": "Semester 1 Quiz",
   "start_time": "2026-03-01T00:00:00Z",
   "end_time": "2026-04-01T00:00:00Z",
-  "status": "pending"
+  "status": "pending",
+  "questions": [
+    {
+      "id": "question_uuid_optional",
+      "type": "mcq",
+      "title": "Which drawing is correct?",
+      "question_image": "https://cdn.example.com/questions/q1.png",
+      "is_visible": false,
+      "order_index": 1,
+      "options": [
+        {
+          "id": "option_uuid_optional",
+          "image_url": "https://cdn.example.com/options/q1-opt1.png",
+          "order_index": 1
+        },
+        {
+          "image_url": "https://cdn.example.com/options/q1-opt2.png",
+          "order_index": 2
+        }
+      ]
+    },
+    {
+      "id": "question_uuid_optional",
+      "type": "arrow",
+      "title": "Point to the stop sign",
+      "question_image": "https://cdn.example.com/questions/q2.png",
+      "is_visible": false,
+      "order_index": 2,
+      "config": {
+        "id": "config_uuid_optional",
+        "correct_angle": 120.5,
+        "tolerance": 15,
+        "standing_position": "car",
+        "looking_direction": "traffic_light"
+      }
+    }
+  ]
 }
 ```
 
@@ -155,15 +203,76 @@ Response
 ``` json
 {
   "id": "uuid",
-  "token": "public_token"
+  "name": "Semester 1 Quiz",
+  "token": "public_token",
+  "created_by": "user_id",
+  "created_at": "timestamp",
+  "start_time": "2026-03-01T00:00:00Z",
+  "end_time": "2026-04-01T00:00:00Z",
+  "status": "pending",
+  "questions": [
+    {
+      "id": "uuid",
+      "survey_id": "uuid",
+      "type": "mcq",
+      "title": "Which drawing is correct?",
+      "question_image": "https://cdn.example.com/questions/q1.png",
+      "is_visible": false,
+      "order_index": 1,
+      "created_at": "timestamp",
+      "options": [
+        {
+          "id": "uuid",
+          "question_id": "uuid",
+          "image_url": "https://cdn.example.com/options/q1-opt1.png",
+          "order_index": 1
+        }
+      ],
+      "config": null
+    },
+    {
+      "id": "uuid",
+      "survey_id": "uuid",
+      "type": "arrow",
+      "title": "Point to the stop sign",
+      "question_image": "https://cdn.example.com/questions/q2.png",
+      "is_visible": false,
+      "order_index": 2,
+      "created_at": "timestamp",
+      "options": [],
+      "config": {
+        "question_id": "uuid",
+        "correct_angle": 120.5,
+        "tolerance": 15.0,
+        "standing_position": "car",
+        "looking_direction": "traffic_light"
+      }
+    }
+  ]
 }
 ```
+
+Notes
+
+- If `id` is provided, the record is updated; if omitted, a new record is created.
+- In update mode (`survey.id` provided), questions not present in `questions` will be deleted.
+- In update mode for `mcq`, options not present in that question's `options` will be deleted.
+- `mcq` requires `options` and must not include `config`.
+- `arrow` requires `config` and must not include `options`.
+- For `config`, use `question_id` from the existing config object as `id`.
 
 ------------------------------------------------------------------------
 
 ## Get Survey Detail
 
-GET `/api/surveys/{survey_id}`
+GET `/surveys/{survey_id}`
+
+Auth: Bearer Token
+
+Behavior
+
+- Use `sub` in JWT to resolve current user.
+- Return full survey details (questions/options/config) if survey belongs to current user.
 
 Response
 
@@ -171,7 +280,33 @@ Response
 {
   "id": "uuid",
   "name": "Semester 1 Quiz",
-  "questions": []
+  "token": "public_token",
+  "created_by": "user_id",
+  "created_at": "timestamp",
+  "start_time": "timestamp",
+  "end_time": "timestamp",
+  "status": "pending",
+  "questions": [
+    {
+      "id": "uuid",
+      "survey_id": "uuid",
+      "type": "mcq",
+      "title": "Which drawing is correct?",
+      "question_image": "https://cdn.example.com/questions/q1.png",
+      "is_visible": true,
+      "order_index": 1,
+      "created_at": "timestamp",
+      "options": [
+        {
+          "id": "uuid",
+          "question_id": "uuid",
+          "image_url": "https://cdn.example.com/options/q1-opt1.png",
+          "order_index": 1
+        }
+      ],
+      "config": null
+    }
+  ]
 }
 ```
 
@@ -214,6 +349,8 @@ GET `/api/surveys/{survey_id}/questions`
 
 POST `/api/surveys/{survey_id}/questions`
 
+Note: `is_visible` controls whether the question appears to students.
+
 ### MCQ
 
 ``` json
@@ -221,6 +358,7 @@ POST `/api/surveys/{survey_id}/questions`
   "type": "mcq",
   "title": "Which drawing is correct?",
   "question_image": "https://r2/q1.jpg",
+  "is_visible": false,
   "order_index": 1,
   "options": [
     {
@@ -242,6 +380,7 @@ POST `/api/surveys/{survey_id}/questions`
   "type": "arrow",
   "title": "Point to the stop sign",
   "question_image": "https://r2/q2.jpg",
+  "is_visible": false,
   "order_index": 2,
   "config": {
     "correct_angle": 120.5,
@@ -258,7 +397,7 @@ POST `/api/surveys/{survey_id}/questions`
 
 PUT `/api/questions/{question_id}`
 
-Payload similar to Create.
+Payload similar to Create, including `is_visible` for show/hide toggling.
 
 ------------------------------------------------------------------------
 
@@ -276,139 +415,124 @@ API for students taking the survey
 
 ## Get Survey by Token
 
-GET `/api/public/surveys/{token}`
+GET `/surveys/{token}/show`
 
 Note: Don't return `correct_angle`.
+Only questions with `is_visible = true` should be returned.
+Survey status must be `active`.
 
 ------------------------------------------------------------------------
 
-## Participant Submit (Create/Update)
+## Participant Submit (Start Attempt)
 
-POST `/api/public/participants/submit`
+POST `/participants/submit`
 
 Payload
 
 ``` json
 {
   "survey_id": "uuid",
-  "participant_id": "uuid (optional)",
   "code": "01",
   "name": "Jiara Martins",
   "school": "Ambience Public School",
   "grade": "6",
-  "dob": "2012-05-15T00:00:00Z"
+  "dob": "2012-05-15"
 }
 ```
 
 Rules
 
--   `survey_id` is required to identify which survey the student is participating in.
--   If `participant_id` has a value: update the participant profile.
--   `participant_id` is empty: create a new record (or upsert based on the `survey_id` + `code`).
+- Survey must exist and be `active`.
+- Participant profile is upserted by (`survey_id`, `code`).
+- A new attempt is created every submit.
 
 Response
 
 ``` json
 {
-  "id": "uuid",
-  "survey_id": "uuid",
-  "participant_id": "uuid (optional)",
-  "code": "01",
-  "name": "Jiara Martins",
-  "school": "Ambience Public School",
-  "grade": "6",
-  "dob": "2012-05-15T00:00:00Z"
+  "participant": {
+    "id": "uuid",
+    "survey_id": "uuid",
+    "code": "01",
+    "name": "Jiara Martins",
+    "school": "Ambience Public School",
+    "grade": "6",
+    "dob": "2012-05-15"
+  },
+  "attempt": {
+    "id": "uuid",
+    "survey_id": "uuid",
+    "participant_id": "uuid",
+    "status": "in_progress",
+    "completion_percentage": 0
+  }
 }
 ```
 
 ------------------------------------------------------------------------
 
-## Get Participant (Read)
+## Submit One Answer
 
-GET `/api/public/surveys/{survey_id}/participants/{participant_id}`
+POST `/participants/attempts/{attempt_id}/answers/one`
 
-Or search by code:
-
-GET `/api/public/surveys/{survey_id}/participants/by-code/{code}`
-
-Response
+Payload (MCQ)
 
 ``` json
 {
-  "participant_id": "uuid",
-  "survey_id": "uuid",
-  "code": "01",
-  "name": "Jiara Martins",
-  "school": "Ambience Public School",
-  "grade": "6",
-  "dob": "2012-05-15T00:00:00Z"
+  "question_id": "uuid",
+  "selected_option_id": "uuid",
+  "user_angle": null
 }
 ```
 
-------------------------------------------------------------------------
-
-## Delete Participant
-
-DELETE `/api/public/surveys/{survey_id}/participants/{participant_id}`
-
-------------------------------------------------------------------------
-
-## Start Attempt
-
-POST `/api/public/surveys/{survey_id}/attempts/start`
-
-Payload
+Payload (Arrow)
 
 ``` json
 {
-  "participant_id": "uuid"
+  "question_id": "uuid",
+  "selected_option_id": null,
+  "user_angle": 130.5
 }
+```
+
+Rules
+
+- Survey must be `active`.
+- Answer submit checks survey time window (`start_time`, `end_time`).
+- Only visible questions (`is_visible = true`) are accepted.
 
 Response
 
 ``` json
 {
   "attempt_id": "uuid",
-  "start_time": "timestamp"
+  "answer_id": "uuid",
+  "completion_percentage": 40.0,
+  "answered_count": 2,
+  "total_questions": 5,
+  "status": "in_progress"
 }
 ```
 
 ------------------------------------------------------------------------
 
-## Save Answers
+## Done Attempt
 
-POST `/api/public/attempts/{attempt_id}/answers`
+POST `/participants/attempts/{attempt_id}/done`
 
-Payload
+Rules
 
-``` json
-{
-  "answers": [
-    {
-      "question_id": "uuid",
-      "selected_option_id": "uuid",
-      "user_angle": null
-    },
-    {
-      "question_id": "uuid",
-      "selected_option_id": null,
-      "user_angle": 130.5
-    }
-  ]
-}
-```
-
-------------------------------------------------------------------------
-
-## Submit Attempt
-
-PUT `/api/public/attempts/{attempt_id}/submit`
+- Does not check survey time expiry.
+- Marks attempt as `completed` and sets `end_time`.
 
 Response
 
 ``` json
 {
-  "score": 8.5,
+  "attempt_id": "uuid",
+  "completion_percentage": 100.0,
+  "answered_count": 5,
+  "total_questions": 5,
   "status": "completed"
 }
 ```
@@ -465,7 +589,6 @@ Response
 
     users
     roles
-    user_roles
     surveys
     questions
     question_options
