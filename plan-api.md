@@ -1,8 +1,7 @@
 # API Endpoints Plan (RESTful CRUD)
 
-Tài liệu định nghĩa các API dựa trên **database schema** hiện tại.\
-Các API được thiết kế theo chuẩn **RESTful**, bao gồm đầy đủ **CRUD
-(Create, Read, Update, Delete)** cho các entity trong hệ thống.
+The document defines the APIs based on the current database schema.
+The APIs are designed according to RESTful standards and include full CRUD (Create, Read, Update, Delete) operations for the entities in the system.
 
 ------------------------------------------------------------------------
 
@@ -78,7 +77,7 @@ Response
 
 # 1. File Upload
 
-API để upload ảnh câu hỏi / đáp án lên Cloudflare R2.
+API for uploading question and answer images to Cloudflare R2.
 
 POST `/upload/file`
 
@@ -259,7 +258,7 @@ POST `/api/surveys/{survey_id}/questions`
 
 PUT `/api/questions/{question_id}`
 
-Payload tương tự Create.
+Payload similar to Create.
 
 ------------------------------------------------------------------------
 
@@ -271,7 +270,7 @@ DELETE `/api/questions/{question_id}`
 
 # 4. Public Survey APIs
 
-Các API dành cho học sinh làm bài.
+API for students taking the survey
 
 ------------------------------------------------------------------------
 
@@ -279,7 +278,7 @@ Các API dành cho học sinh làm bài.
 
 GET `/api/public/surveys/{token}`
 
-Lưu ý: Không trả về `correct_angle`.
+Note: Don't return `correct_angle`.
 
 ------------------------------------------------------------------------
 
@@ -303,9 +302,9 @@ Payload
 
 Rules
 
--   Bắt buộc có `survey_id` để xác định học sinh tham gia survey nào.
--   `participant_id` có giá trị: cập nhật hồ sơ participant.
--   `participant_id` rỗng: tạo mới (hoặc upsert theo cặp `survey_id` + `code`).
+-   `survey_id` is required to identify which survey the student is participating in.
+-   If `participant_id` has a value: update the participant profile.
+-   `participant_id` is empty: create a new record (or upsert based on the `survey_id` + `code`).
 
 Response
 
@@ -328,7 +327,7 @@ Response
 
 GET `/api/public/surveys/{survey_id}/participants/{participant_id}`
 
-Hoặc tra theo code:
+Or search by code:
 
 GET `/api/public/surveys/{survey_id}/participants/by-code/{code}`
 
