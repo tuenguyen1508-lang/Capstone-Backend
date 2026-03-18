@@ -102,14 +102,17 @@ class SurveyCreateResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
-#e them cai nay a( generate)
 class GenerateTokenResponse(BaseModel):
     id: UUID
     token: str
 
     class Config:
         from_attributes = True
+
+
+class SurveyDeleteResponse(BaseModel):
+    id: UUID
+    detail: str
 
 
 class SurveyListItemResponse(BaseModel):

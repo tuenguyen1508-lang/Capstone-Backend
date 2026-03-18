@@ -1,4 +1,3 @@
-import secrets
 import uuid
 from uuid import UUID
 
@@ -51,12 +50,25 @@ def _validate_survey_time_range(start_time, end_time):
         )
 
 
+def _generate_unique_survey_token(db: Session, max_attempts: int = 5):
+    for _ in range(max_attempts):
+        token = uuid.uuid4().hex
+        token_exists = db.query(Survey.id).filter(Survey.token == token).first()
+        if token_exists is None:
+            return token
+
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Could not generate a unique survey token",
+    )
+
+
 def _upsert_survey(db: Session, payload: SurveyCreateRequest, current_user: User):
     if payload.id is None:
         _validate_survey_time_range(payload.start_time, payload.end_time)
         survey = Survey(
             name=payload.name,
-            token=uuid.uuid4().hex,
+            token=_generate_unique_survey_token(db=db),
             created_by=current_user.id,
             start_time=payload.start_time,
             end_time=payload.end_time,
@@ -369,7 +381,6 @@ def get_survey_by_token_show(db: Session, token: str):
     )
 
 
-#them function nay
 def generate_survey_token(db: Session, survey_id: UUID, current_user: User):
     survey = (
         db.query(Survey)
@@ -383,9 +394,44 @@ def generate_survey_token(db: Session, survey_id: UUID, current_user: User):
             detail="Survey not found",
         )
 
-    survey.token = secrets.token_urlsafe(16)
+    survey.token = _generate_unique_survey_token(db=db)
 
     db.commit()
     db.refresh(survey)
 
     return survey
+
+
+def delete_survey(db: Session, survey_id: UUID, current_user: User):
+    survey = (
+        db.query(Survey)
+        .filter(Survey.id == survey_id, Survey.created_by == current_user.id)
+        .first()
+    )
+
+    if not survey:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Survey not found",
+        )
+
+    if survey.status != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only pending surveys can be deleted",
+        )
+
+    try:
+        db.delete(survey)
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "id": survey_id,
+        "detail": "Survey deleted successfully",
+    }

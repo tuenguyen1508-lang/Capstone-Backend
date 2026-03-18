@@ -7,21 +7,22 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.schemas.survey import (
+    GenerateTokenResponse,
     SurveyCreateRequest,
     SurveyCreateResponse,
     SurveyShowByTokenResponse,
-    GenerateTokenResponse,
+    SurveyDeleteResponse,
 )
 
 
-#e them cai nay
 from app.services.auth import get_current_user
 from app.services.survey import (
     create_survey,
+    delete_survey,
+    generate_survey_token,
     get_survey_by_token_show,
     get_survey_detail_by_id,
     get_surveys_by_current_user,
-    generate_survey_token,
 )
 
 router = APIRouter(
@@ -46,6 +47,12 @@ def get_my_surveys(db: Session = Depends(get_db), current_user: User = Depends(g
 def get_survey_detail(survey_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     survey = get_survey_detail_by_id(db=db, survey_id=survey_id, current_user=current_user)
     return survey
+
+
+@router.delete("/{survey_id}", response_model=SurveyDeleteResponse, status_code=status.HTTP_200_OK)
+def delete(survey_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    result = delete_survey(db=db, survey_id=survey_id, current_user=current_user)
+    return result
 
 #them cai nay nua a
 @router.post("/{survey_id}/token", response_model=GenerateTokenResponse, status_code=status.HTTP_201_CREATED)
