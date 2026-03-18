@@ -1,19 +1,21 @@
 import os
 from typing import Any
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from dotenv import load_dotenv
 
 from app.database import engine, Base
-from app.routers import auth, upload, participant
+from app.models import user, survey
+from app.routers import auth, upload, participant, survey as survey_router
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
-
-load_dotenv()
 
 app = FastAPI(
     title=os.getenv("APP_NAME", "Capstone Backend"),
@@ -67,9 +69,12 @@ async def unhandled_exception_handler(_: Request, __: Exception):
         },
     )
 
+
 app.include_router(auth.router)
 app.include_router(upload.router)
 app.include_router(participant.router)
+app.include_router(survey_router.router)
+
 
 @app.get("/health")
 def health_check():
@@ -79,9 +84,13 @@ def health_check():
         "environment": os.getenv("APP_ENV", "unknown")
     }
 
+
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to the Capstone Backend API. Visit /docs for the API documentation."}
+    return {
+        "message": "Welcome to the Capstone Backend API. Visit /docs for the API documentation."
+    }
+
 
 if __name__ == "__main__":
     import uvicorn
