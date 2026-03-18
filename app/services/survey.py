@@ -1,3 +1,4 @@
+import secrets
 import uuid
 from uuid import UUID
 
@@ -366,3 +367,25 @@ def get_survey_by_token_show(db: Session, token: str):
         status=survey.status,
         questions=public_questions,
     )
+
+
+#them function nay
+def generate_survey_token(db: Session, survey_id: UUID, current_user: User):
+    survey = (
+        db.query(Survey)
+        .filter(Survey.id == survey_id, Survey.created_by == current_user.id)
+        .first()
+    )
+
+    if not survey:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Survey not found",
+        )
+
+    survey.token = secrets.token_urlsafe(16)
+
+    db.commit()
+    db.refresh(survey)
+
+    return survey
