@@ -25,6 +25,8 @@ class Survey(Base):
     participants = relationship("Participant", back_populates="survey", cascade="all, delete-orphan")
     attempts = relationship("Attempt", back_populates="survey", cascade="all, delete-orphan")
 
+    
+
 
 class Question(Base):
     __tablename__ = "questions"
@@ -117,3 +119,5 @@ class Answer(Base):
     attempt = relationship("Attempt", back_populates="answers")
     question = relationship("Question", back_populates="answers")
     selected_option = relationship("QuestionOption", back_populates="answers")
+
+
