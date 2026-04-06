@@ -80,7 +80,26 @@ def _get_visible_question_or_404(db: Session, survey_id: UUID, question_id: UUID
     return question
 
 
+def _is_empty_answer_payload(payload: ParticipantAnswerSubmitRequest):
+    return (
+        payload.selected_option_id is None
+        and not payload.selected_option_ids
+        and payload.user_angle is None
+        and not payload.user_angles
+    )
+
+
 def _validate_payload_for_question_type(question: Question, payload: ParticipantAnswerSubmitRequest):
+    is_empty = _is_empty_answer_payload(payload)
+
+    if is_empty:
+        if getattr(question, "is_required", False):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Answer is required for this question",
+            )
+        return
+
     if question.type == "mcq":
         allow_multiple = bool(getattr(question, "allow_multiple_selection", False))
         if allow_multiple:
@@ -272,6 +291,30 @@ def _replace_multi_option_answers(db: Session, attempt_id: UUID, question_id: UU
     return created_answers
 
 
+def _replace_with_empty_answer(db: Session, attempt_id: UUID, question_id: UUID):
+    existing_answers = (
+        db.query(Answer)
+        .filter(
+            Answer.attempt_id == attempt_id,
+            Answer.question_id == question_id,
+        )
+        .all()
+    )
+    for existing_answer in existing_answers:
+        db.delete(existing_answer)
+    db.flush()
+
+    answer = Answer(
+        attempt_id=attempt_id,
+        question_id=question_id,
+        selected_option_id=None,
+        user_angle=None,
+    )
+    db.add(answer)
+    db.flush()
+    return answer
+
+
 def _calculate_attempt_progress(db: Session, attempt_id: UUID, survey_id: UUID):
     total_questions = (
         db.query(func.count(Question.id))
@@ -359,8 +402,16 @@ def submit_answer_one(db: Session, attempt_id: UUID, payload: ParticipantAnswerS
         _validate_options_belong_to_question(db, question, payload.selected_option_ids)
 
     allow_multi_mcq = question.type == "mcq" and bool(getattr(question, "allow_multiple_selection", False))
+    is_empty_payload = _is_empty_answer_payload(payload)
 
-    if allow_multi_mcq:
+    if is_empty_payload:
+        answer = _replace_with_empty_answer(
+            db=db,
+            attempt_id=attempt.id,
+            question_id=payload.question_id,
+        )
+        answer_ids = [answer.id]
+    elif allow_multi_mcq:
         answers = _replace_multi_option_answers(
             db=db,
             attempt_id=attempt.id,
