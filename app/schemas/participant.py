@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from uuid import UUID
 from datetime import date
-from typing import Optional
+from typing import List, Optional
 
 class ParticipantSubmitRequest(BaseModel):
     survey_id: UUID
@@ -44,12 +44,15 @@ class ParticipantSubmitStartResponse(BaseModel):
 class ParticipantAnswerSubmitRequest(BaseModel):
     question_id: UUID
     selected_option_id: Optional[UUID] = None
+    selected_option_ids: Optional[List[UUID]] = None
     user_angle: Optional[float] = None
+    user_angles: Optional[List[float]] = None
 
 
 class ParticipantAnswerSubmitResponse(BaseModel):
     attempt_id: UUID
     answer_id: UUID
+    answer_ids: List[UUID] = []
     completion_percentage: float
     answered_count: int
     total_questions: int

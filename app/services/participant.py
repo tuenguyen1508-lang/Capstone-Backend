@@ -82,15 +82,38 @@ def _get_visible_question_or_404(db: Session, survey_id: UUID, question_id: UUID
 
 def _validate_payload_for_question_type(question: Question, payload: ParticipantAnswerSubmitRequest):
     if question.type == "mcq":
-        if payload.selected_option_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="selected_option_id is required for mcq question",
-            )
+        allow_multiple = bool(getattr(question, "allow_multiple_selection", False))
+        if allow_multiple:
+            if payload.selected_option_ids is None or len(payload.selected_option_ids) == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="selected_option_ids is required for mcq question with allow_multiple_selection=true",
+                )
+            if payload.selected_option_id is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="selected_option_id must be null when allow_multiple_selection=true",
+                )
+        else:
+            if payload.selected_option_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="selected_option_id is required for mcq question",
+                )
+            if payload.selected_option_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="selected_option_ids must be null when allow_multiple_selection=false",
+                )
         if payload.user_angle is not None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="user_angle must be null for mcq question",
+            )
+        if payload.user_angles:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="user_angles must be null for mcq question",
             )
 
     elif question.type == "arrow":
@@ -99,10 +122,26 @@ def _validate_payload_for_question_type(question: Question, payload: Participant
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="user_angle is required for arrow question",
             )
+        if payload.user_angle < 0 or payload.user_angle > 360:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="user_angle must be in range [0, 360]",
+            )
+        if payload.user_angles:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="user_angles must be null for arrow question",
+            )
+
         if payload.selected_option_id is not None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="selected_option_id must be null for arrow question",
+            )
+        if payload.selected_option_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="selected_option_ids must be null for arrow question",
             )
     else:
         raise HTTPException(
@@ -124,6 +163,30 @@ def _validate_option_belongs_to_question(db: Session, question: Question, select
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="selected_option_id does not belong to the question",
+        )
+
+
+def _validate_options_belong_to_question(db: Session, question: Question, selected_option_ids):
+    option_ids = list({item for item in selected_option_ids if item is not None})
+    if not option_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="selected_option_ids is required",
+        )
+
+    option_count = (
+        db.query(func.count(QuestionOption.id))
+        .filter(
+            QuestionOption.question_id == question.id,
+            QuestionOption.id.in_(option_ids),
+        )
+        .scalar()
+    ) or 0
+
+    if option_count != len(option_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="One or more selected_option_ids do not belong to the question",
         )
 
 
@@ -151,6 +214,62 @@ def _upsert_answer(db: Session, attempt_id: UUID, payload: ParticipantAnswerSubm
     db.add(answer)
     db.flush()
     return answer
+
+
+def _replace_multi_angle_answers(db: Session, attempt_id: UUID, question_id: UUID, user_angles):
+    existing_answers = (
+        db.query(Answer)
+        .filter(
+            Answer.attempt_id == attempt_id,
+            Answer.question_id == question_id,
+        )
+        .all()
+    )
+    for existing_answer in existing_answers:
+        db.delete(existing_answer)
+    db.flush()
+
+    created_answers = []
+    for angle in user_angles:
+        answer = Answer(
+            attempt_id=attempt_id,
+            question_id=question_id,
+            selected_option_id=None,
+            user_angle=angle,
+        )
+        db.add(answer)
+        db.flush()
+        created_answers.append(answer)
+
+    return created_answers
+
+
+def _replace_multi_option_answers(db: Session, attempt_id: UUID, question_id: UUID, selected_option_ids):
+    existing_answers = (
+        db.query(Answer)
+        .filter(
+            Answer.attempt_id == attempt_id,
+            Answer.question_id == question_id,
+        )
+        .all()
+    )
+    for existing_answer in existing_answers:
+        db.delete(existing_answer)
+    db.flush()
+
+    created_answers = []
+    for option_id in selected_option_ids:
+        answer = Answer(
+            attempt_id=attempt_id,
+            question_id=question_id,
+            selected_option_id=option_id,
+            user_angle=None,
+        )
+        db.add(answer)
+        db.flush()
+        created_answers.append(answer)
+
+    return created_answers
 
 
 def _calculate_attempt_progress(db: Session, attempt_id: UUID, survey_id: UUID):
@@ -236,8 +355,33 @@ def submit_answer_one(db: Session, attempt_id: UUID, payload: ParticipantAnswerS
 
     if payload.selected_option_id is not None:
         _validate_option_belongs_to_question(db, question, payload.selected_option_id)
+    if payload.selected_option_ids:
+        _validate_options_belong_to_question(db, question, payload.selected_option_ids)
 
-    answer = _upsert_answer(db, attempt.id, payload)
+    allow_multi_mcq = question.type == "mcq" and bool(getattr(question, "allow_multiple_selection", False))
+
+    if allow_multi_mcq:
+        answers = _replace_multi_option_answers(
+            db=db,
+            attempt_id=attempt.id,
+            question_id=payload.question_id,
+            selected_option_ids=payload.selected_option_ids or [],
+        )
+        answer = answers[0]
+        answer_ids = [item.id for item in answers]
+    elif question.type == "arrow" and payload.user_angles:
+        answers = _replace_multi_angle_answers(
+            db=db,
+            attempt_id=attempt.id,
+            question_id=payload.question_id,
+            user_angles=payload.user_angles or [],
+        )
+        answer = answers[0]
+        answer_ids = [item.id for item in answers]
+    else:
+        answer = _upsert_answer(db, attempt.id, payload)
+        answer_ids = [answer.id]
+
     answered_count, total_questions, completion_percentage = _calculate_attempt_progress(db, attempt.id, survey.id)
 
     attempt.completion_percentage = completion_percentage
@@ -251,6 +395,7 @@ def submit_answer_one(db: Session, attempt_id: UUID, payload: ParticipantAnswerS
     return {
         "attempt_id": attempt.id,
         "answer_id": answer.id,
+        "answer_ids": answer_ids,
         "completion_percentage": attempt.completion_percentage,
         "answered_count": answered_count,
         "total_questions": total_questions,

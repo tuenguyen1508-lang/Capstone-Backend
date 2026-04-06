@@ -111,6 +111,8 @@ def _upsert_question(db: Session, survey: Survey, question_payload):
             title=question_payload.title,
             question_image=question_payload.question_image,
             is_visible=question_payload.is_visible,
+            is_required=question_payload.is_required,
+            allow_multiple_selection=question_payload.allow_multiple_selection,
             order_index=question_payload.order_index,
         )
         db.add(question)
@@ -132,6 +134,8 @@ def _upsert_question(db: Session, survey: Survey, question_payload):
     question.title = question_payload.title
     question.question_image = question_payload.question_image
     question.is_visible = question_payload.is_visible
+    question.is_required = question_payload.is_required
+    question.allow_multiple_selection = question_payload.allow_multiple_selection
     question.order_index = question_payload.order_index
     return question
 
@@ -364,6 +368,8 @@ def get_survey_by_token_show(db: Session, token: str):
                 title=question.title,
                 question_image=question.question_image,
                 is_visible=question.is_visible,
+                is_required=question.is_required,
+                allow_multiple_selection=question.allow_multiple_selection,
                 order_index=question.order_index,
                 options=public_options,
                 config=public_config,

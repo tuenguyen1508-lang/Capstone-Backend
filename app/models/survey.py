@@ -37,6 +37,8 @@ class Question(Base):
     title = Column(String, nullable=False)
     question_image = Column(String, nullable=True)
     is_visible = Column(Boolean, nullable=False, default=False)
+    is_required = Column(Boolean, nullable=False, default=False)
+    allow_multiple_selection = Column(Boolean, nullable=False, default=False)
     order_index = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -66,6 +68,7 @@ class QuestionConfig(Base):
     tolerance = Column(Float, nullable=False)
     standing_position = Column(String, nullable=True)
     looking_direction = Column(String, nullable=True)
+    allow_multiple_selection = Column(Boolean, nullable=False, default=False)
 
     question = relationship("Question", back_populates="config")
 

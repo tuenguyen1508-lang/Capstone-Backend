@@ -37,6 +37,8 @@ class QuestionCreate(BaseModel):
     title: str
     question_image: Optional[str] = None
     is_visible: bool = False
+    is_required: bool = False
+    allow_multiple_selection: bool = False
     order_index: int
     options: Optional[List[QuestionOptionCreate]] = None
     config: Optional[QuestionConfigCreate] = None
@@ -79,6 +81,8 @@ class QuestionResponse(BaseModel):
     title: str
     question_image: Optional[str] = None
     is_visible: bool
+    is_required: bool
+    allow_multiple_selection: bool
     order_index: int
     created_at: datetime
     options: List[QuestionOptionResponse] = Field(default_factory=list)
@@ -150,6 +154,8 @@ class PublicQuestionResponse(BaseModel):
     title: str
     question_image: Optional[str] = None
     is_visible: bool
+    is_required: bool
+    allow_multiple_selection: bool
     order_index: int
     options: List[PublicQuestionOptionResponse] = Field(default_factory=list)
     config: Optional[PublicQuestionConfigResponse] = None
