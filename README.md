@@ -211,8 +211,7 @@ Runs SQL:
 INSERT INTO roles (name, code, created_at)
 VALUES ('Researcher', 'RESEARCHER', NOW());
 
-INSERT INTO roles (name, code, created_at)
-VALUES ('Administrator', 'ADMIN', NOW());
+
 ```
 
 ------------------------------------------------------------------------
