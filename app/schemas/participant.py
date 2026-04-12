@@ -7,9 +7,10 @@ class ParticipantSubmitRequest(BaseModel):
     survey_id: UUID
     code: str
     name: str
-    school: str
-    grade: str
-    dob: date
+    school: Optional[str] = None
+    grade: Optional[str] = None
+    dob: Optional[date] = None
+    consent: Optional[str] = None
 
 
 class ParticipantResponse(BaseModel):
@@ -17,9 +18,10 @@ class ParticipantResponse(BaseModel):
     survey_id: UUID
     code: str
     name: str
-    school: str
-    grade: str
-    dob: date
+    school: Optional[str] = None
+    grade: Optional[str] = None
+    dob: Optional[date] = None
+    consent: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -47,6 +49,7 @@ class ParticipantAnswerSubmitRequest(BaseModel):
     selected_option_ids: Optional[List[UUID]] = None
     user_angle: Optional[float] = None
     user_angles: Optional[List[float]] = None
+    text_answer: Optional[str] = None
 
 
 class ParticipantAnswerSubmitResponse(BaseModel):

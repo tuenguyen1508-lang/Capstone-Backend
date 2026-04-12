@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -19,6 +19,10 @@ class Survey(Base):
     start_time = Column(DateTime, nullable=True)
     end_time = Column(DateTime, nullable=True)
     status = Column(String, nullable=False, default="pending")
+    arrow_time_limit_sec = Column(Integer, nullable=True)
+    mcq_time_limit_sec = Column(Integer, nullable=True)
+    text_entry_time_limit_sec = Column(Integer, nullable=True)
+    participant_form_config = Column(JSON, nullable=True)
 
     created_by_user = relationship("User", back_populates="created_surveys")
     questions = relationship("Question", back_populates="survey", cascade="all, delete-orphan")
@@ -86,6 +90,7 @@ class Participant(Base):
     school = Column(String, nullable=True)
     grade = Column(String, nullable=True)
     dob = Column(Date, nullable=True)
+    consent = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     survey = relationship("Survey", back_populates="participants")
@@ -117,6 +122,8 @@ class Answer(Base):
     question_id = Column(UUID(as_uuid=True), ForeignKey("questions.id"), nullable=False)
     selected_option_id = Column(UUID(as_uuid=True), ForeignKey("question_options.id"), nullable=True)
     user_angle = Column(Float, nullable=True)
+    angle_deviation = Column(Float, nullable=True)
+    text_answer = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     attempt = relationship("Attempt", back_populates="answers")

@@ -1,10 +1,11 @@
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.schemas.analytics import QuestionAnalyticsResponse
 from app.models.user import User
 from app.schemas.survey import (
     GenerateTokenResponse,
@@ -19,7 +20,10 @@ from app.services.auth import get_current_user
 from app.services.survey import (
     create_survey,
     delete_survey,
+    export_question_responses_csv,
+    export_survey_responses_csv,
     generate_survey_token,
+    get_question_analytics_by_id,
     get_survey_by_token_show,
     get_survey_detail_by_id,
     get_surveys_by_current_user,
@@ -53,6 +57,66 @@ def get_survey_detail(survey_id: UUID, db: Session = Depends(get_db), current_us
 def delete(survey_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = delete_survey(db=db, survey_id=survey_id, current_user=current_user)
     return result
+
+
+@router.get("/{survey_id}/questions/{question_id}/responses", response_model=QuestionAnalyticsResponse)
+def get_question_responses(
+    survey_id: UUID,
+    question_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = get_question_analytics_by_id(
+        db=db,
+        survey_id=survey_id,
+        question_id=question_id,
+        current_user=current_user,
+    )
+    return result
+
+
+@router.get("/{survey_id}/questions/{question_id}/responses/export", status_code=status.HTTP_200_OK)
+def export_question_responses(
+    survey_id: UUID,
+    question_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    csv_content, filename = export_question_responses_csv(
+        db=db,
+        survey_id=survey_id,
+        question_id=question_id,
+        current_user=current_user,
+    )
+
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
+@router.get("/{survey_id}/responses/export", status_code=status.HTTP_200_OK)
+def export_survey_responses(
+    survey_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    csv_content, filename = export_survey_responses_csv(
+        db=db,
+        survey_id=survey_id,
+        current_user=current_user,
+    )
+
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
 
 #them cai nay nua a
 @router.post("/{survey_id}/token", response_model=GenerateTokenResponse, status_code=status.HTTP_201_CREATED)

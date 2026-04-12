@@ -81,11 +81,13 @@ def _get_visible_question_or_404(db: Session, survey_id: UUID, question_id: UUID
 
 
 def _is_empty_answer_payload(payload: ParticipantAnswerSubmitRequest):
+    text_answer = payload.text_answer.strip() if isinstance(payload.text_answer, str) else ""
     return (
         payload.selected_option_id is None
         and not payload.selected_option_ids
         and payload.user_angle is None
         and not payload.user_angles
+        and not text_answer
     )
 
 
@@ -134,6 +136,11 @@ def _validate_payload_for_question_type(question: Question, payload: Participant
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="user_angles must be null for mcq question",
             )
+        if payload.text_answer is not None and payload.text_answer.strip() != "":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="text_answer must be null for mcq question",
+            )
 
     elif question.type == "arrow":
         if payload.user_angle is None:
@@ -161,6 +168,40 @@ def _validate_payload_for_question_type(question: Question, payload: Participant
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="selected_option_ids must be null for arrow question",
+            )
+        if payload.text_answer is not None and payload.text_answer.strip() != "":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="text_answer must be null for arrow question",
+            )
+
+    elif question.type == "text_entry":
+        if payload.selected_option_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="selected_option_id must be null for text_entry question",
+            )
+        if payload.selected_option_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="selected_option_ids must be null for text_entry question",
+            )
+        if payload.user_angle is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="user_angle must be null for text_entry question",
+            )
+        if payload.user_angles:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="user_angles must be null for text_entry question",
+            )
+
+        text_value = payload.text_answer.strip() if isinstance(payload.text_answer, str) else ""
+        if not text_value and getattr(question, "is_required", False):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="text_answer is required for text_entry question",
             )
     else:
         raise HTTPException(
@@ -209,7 +250,7 @@ def _validate_options_belong_to_question(db: Session, question: Question, select
         )
 
 
-def _upsert_answer(db: Session, attempt_id: UUID, payload: ParticipantAnswerSubmitRequest):
+def _upsert_answer(db: Session, attempt_id: UUID, payload: ParticipantAnswerSubmitRequest, angle_deviation=None):
     answer = (
         db.query(Answer)
         .filter(
@@ -222,6 +263,8 @@ def _upsert_answer(db: Session, attempt_id: UUID, payload: ParticipantAnswerSubm
     if answer:
         answer.selected_option_id = payload.selected_option_id
         answer.user_angle = payload.user_angle
+        answer.angle_deviation = angle_deviation
+        answer.text_answer = payload.text_answer.strip() if isinstance(payload.text_answer, str) else None
         return answer
 
     answer = Answer(
@@ -229,6 +272,8 @@ def _upsert_answer(db: Session, attempt_id: UUID, payload: ParticipantAnswerSubm
         question_id=payload.question_id,
         selected_option_id=payload.selected_option_id,
         user_angle=payload.user_angle,
+        angle_deviation=angle_deviation,
+        text_answer=payload.text_answer.strip() if isinstance(payload.text_answer, str) else None,
     )
     db.add(answer)
     db.flush()
@@ -255,6 +300,8 @@ def _replace_multi_angle_answers(db: Session, attempt_id: UUID, question_id: UUI
             question_id=question_id,
             selected_option_id=None,
             user_angle=angle,
+            angle_deviation=None,
+            text_answer=None,
         )
         db.add(answer)
         db.flush()
@@ -283,6 +330,8 @@ def _replace_multi_option_answers(db: Session, attempt_id: UUID, question_id: UU
             question_id=question_id,
             selected_option_id=option_id,
             user_angle=None,
+            angle_deviation=None,
+            text_answer=None,
         )
         db.add(answer)
         db.flush()
@@ -309,10 +358,19 @@ def _replace_with_empty_answer(db: Session, attempt_id: UUID, question_id: UUID)
         question_id=question_id,
         selected_option_id=None,
         user_angle=None,
+        angle_deviation=None,
+        text_answer=None,
     )
     db.add(answer)
     db.flush()
     return answer
+
+
+def _compute_arrow_deviation(user_angle, correct_angle):
+    if user_angle is None or correct_angle is None:
+        return None
+    difference = abs((float(user_angle) - float(correct_angle)) % 360)
+    return min(difference, 360 - difference)
 
 
 def _calculate_attempt_progress(db: Session, attempt_id: UUID, survey_id: UUID):
@@ -344,21 +402,80 @@ def submit_participant(db: Session, payload: ParticipantSubmitRequest):
     survey = _get_survey_or_404(db, payload.survey_id)
     _ensure_survey_active(survey)
 
-    participant = get_participant_by_survey_and_code(db, payload.survey_id, payload.code)
+    code = (payload.code or "").strip()
+    name = (payload.name or "").strip()
+    school = (payload.school or "").strip() or None
+    grade = (payload.grade or "").strip() or None
+    dob = payload.dob
+    consent = (payload.consent or "").strip().lower() or None
+
+    if not code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Participant code is required",
+        )
+
+    if not name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Participant name is required",
+        )
+
+    if consent is not None and consent not in {"yes", "no"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="consent must be either 'yes' or 'no'",
+        )
+
+    form_config = survey.participant_form_config or {}
+    fields_config = form_config.get("fields", {}) if isinstance(form_config, dict) else {}
+    school_default = form_config.get("school_default") if isinstance(form_config, dict) else None
+    if not school and isinstance(school_default, str) and school_default.strip():
+        school = school_default.strip()
+
+    def _is_required(field_name: str, default_required: bool):
+        field_meta = fields_config.get(field_name, {}) if isinstance(fields_config, dict) else {}
+        if isinstance(field_meta, dict) and field_meta.get("visible") is False:
+            return False
+        if isinstance(field_meta, dict) and "required" in field_meta:
+            return bool(field_meta.get("required"))
+        return default_required
+
+    if _is_required("dob", True) and dob is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Date of birth is required",
+        )
+
+    if _is_required("grade", True) and not grade:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Grade is required",
+        )
+
+    if _is_required("school", True) and not school:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="School is required",
+        )
+
+    participant = get_participant_by_survey_and_code(db, payload.survey_id, code)
 
     if participant:
-        participant.name = payload.name
-        participant.school = payload.school
-        participant.grade = payload.grade
-        participant.dob = payload.dob
+        participant.name = name
+        participant.school = school
+        participant.grade = grade
+        participant.dob = dob
+        participant.consent = consent
     else:
         participant = Participant(
             survey_id=payload.survey_id,
-            code=payload.code,
-            name=payload.name,
-            school=payload.school,
-            grade=payload.grade,
-            dob=payload.dob,
+            code=code,
+            name=name,
+            school=school,
+            grade=grade,
+            dob=dob,
+            consent=consent,
         )
         db.add(participant)
         db.flush()
@@ -403,6 +520,10 @@ def submit_answer_one(db: Session, attempt_id: UUID, payload: ParticipantAnswerS
 
     allow_multi_mcq = question.type == "mcq" and bool(getattr(question, "allow_multiple_selection", False))
     is_empty_payload = _is_empty_answer_payload(payload)
+    arrow_deviation = None
+    if question.type == "arrow" and payload.user_angle is not None:
+        correct_angle = question.config.correct_angle if question.config is not None else None
+        arrow_deviation = _compute_arrow_deviation(payload.user_angle, correct_angle)
 
     if is_empty_payload:
         answer = _replace_with_empty_answer(
@@ -430,7 +551,7 @@ def submit_answer_one(db: Session, attempt_id: UUID, payload: ParticipantAnswerS
         answer = answers[0]
         answer_ids = [item.id for item in answers]
     else:
-        answer = _upsert_answer(db, attempt.id, payload)
+        answer = _upsert_answer(db, attempt.id, payload, angle_deviation=arrow_deviation)
         answer_ids = [answer.id]
 
     answered_count, total_questions, completion_percentage = _calculate_attempt_progress(db, attempt.id, survey.id)

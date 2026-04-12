@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -15,6 +15,7 @@ class SurveyStatusEnum(str, Enum):
 class QuestionTypeEnum(str, Enum):
     MCQ = "mcq"
     ARROW = "arrow"
+    TEXT_ENTRY = "text_entry"
 
 
 class QuestionOptionCreate(BaseModel):
@@ -50,6 +51,10 @@ class SurveyCreateRequest(BaseModel):
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     status: Optional[SurveyStatusEnum] = None
+    arrow_time_limit_sec: Optional[int] = None
+    mcq_time_limit_sec: Optional[int] = None
+    text_entry_time_limit_sec: Optional[int] = None
+    participant_form_config: Optional[Dict[str, Any]] = None
     questions: List[QuestionCreate] = Field(default_factory=list)
 
 
@@ -101,6 +106,10 @@ class SurveyCreateResponse(BaseModel):
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     status: SurveyStatusEnum
+    arrow_time_limit_sec: Optional[int] = None
+    mcq_time_limit_sec: Optional[int] = None
+    text_entry_time_limit_sec: Optional[int] = None
+    participant_form_config: Optional[Dict[str, Any]] = None
     questions: List[QuestionResponse] = Field(default_factory=list)
 
     class Config:
@@ -128,6 +137,9 @@ class SurveyListItemResponse(BaseModel):
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     status: SurveyStatusEnum
+    arrow_time_limit_sec: Optional[int] = None
+    mcq_time_limit_sec: Optional[int] = None
+    text_entry_time_limit_sec: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -168,4 +180,8 @@ class SurveyShowByTokenResponse(BaseModel):
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     status: SurveyStatusEnum
+    arrow_time_limit_sec: Optional[int] = None
+    mcq_time_limit_sec: Optional[int] = None
+    text_entry_time_limit_sec: Optional[int] = None
+    participant_form_config: Optional[Dict[str, Any]] = None
     questions: List[PublicQuestionResponse] = Field(default_factory=list)

@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from dotenv import load_dotenv
 
@@ -13,6 +14,28 @@ from app.routers import auth, upload, participant, survey
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
+
+
+def _ensure_schema_extensions():
+    if engine.url.get_backend_name() != "postgresql":
+        return
+
+    statements = [
+        "ALTER TABLE surveys ADD COLUMN IF NOT EXISTS arrow_time_limit_sec INTEGER",
+        "ALTER TABLE surveys ADD COLUMN IF NOT EXISTS mcq_time_limit_sec INTEGER",
+        "ALTER TABLE surveys ADD COLUMN IF NOT EXISTS text_entry_time_limit_sec INTEGER",
+        "ALTER TABLE surveys ADD COLUMN IF NOT EXISTS participant_form_config JSONB",
+        "ALTER TABLE participants ADD COLUMN IF NOT EXISTS consent VARCHAR",
+        "ALTER TABLE answers ADD COLUMN IF NOT EXISTS angle_deviation DOUBLE PRECISION",
+        "ALTER TABLE answers ADD COLUMN IF NOT EXISTS text_answer TEXT",
+    ]
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+
+_ensure_schema_extensions()
 
 load_dotenv()
 
