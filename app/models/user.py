@@ -1,9 +1,9 @@
 import uuid
-from datetime import datetime
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.database import Base
+from app.utils.timezone import now_canberra_naive
 
 class User(Base):
     __tablename__ = "users"
@@ -12,7 +12,7 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=now_canberra_naive)
 
     role = relationship("Role", back_populates="users")
     created_surveys = relationship("Survey", back_populates="created_by_user")
@@ -24,6 +24,6 @@ class Role(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     code = Column(String, unique=True, index=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=now_canberra_naive)
 
     users = relationship("User", back_populates="role")

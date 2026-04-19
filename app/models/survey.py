@@ -1,11 +1,11 @@
 import uuid
-from datetime import datetime
 
 from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+from app.utils.timezone import now_canberra_naive
 
 
 class Survey(Base):
@@ -15,7 +15,7 @@ class Survey(Base):
     name = Column(String, nullable=False)
     token = Column(String, nullable=False, index=True)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=now_canberra_naive)
     start_time = Column(DateTime, nullable=True)
     end_time = Column(DateTime, nullable=True)
     status = Column(String, nullable=False, default="pending")
@@ -44,7 +44,7 @@ class Question(Base):
     is_required = Column(Boolean, nullable=False, default=False)
     allow_multiple_selection = Column(Boolean, nullable=False, default=False)
     order_index = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=now_canberra_naive)
 
     survey = relationship("Survey", back_populates="questions")
     options = relationship("QuestionOption", back_populates="question", cascade="all, delete-orphan")
@@ -91,7 +91,7 @@ class Participant(Base):
     grade = Column(String, nullable=True)
     dob = Column(Date, nullable=True)
     consent = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=now_canberra_naive)
 
     survey = relationship("Survey", back_populates="participants")
     attempts = relationship("Attempt", back_populates="participant", cascade="all, delete-orphan")
@@ -124,7 +124,7 @@ class Answer(Base):
     user_angle = Column(Float, nullable=True)
     angle_deviation = Column(Float, nullable=True)
     text_answer = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=now_canberra_naive)
 
     attempt = relationship("Attempt", back_populates="answers")
     question = relationship("Question", back_populates="answers")

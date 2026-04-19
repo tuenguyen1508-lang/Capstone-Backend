@@ -25,6 +25,7 @@ from app.schemas.survey import (
     SurveyCreateRequest,
     SurveyShowByTokenResponse,
 )
+from app.utils.timezone import to_canberra_naive
 
 
 def _validate_question_payload(question_index: int, question_payload):
@@ -73,6 +74,10 @@ def _validate_survey_time_range(start_time, end_time):
         )
 
 
+def _normalize_survey_datetime(value):
+    return to_canberra_naive(value)
+
+
 def _normalize_time_limit_seconds(value, field_name: str):
     if value is None:
         return None
@@ -101,15 +106,17 @@ def _upsert_survey(db: Session, payload: SurveyCreateRequest, current_user: User
     arrow_limit = _normalize_time_limit_seconds(payload.arrow_time_limit_sec, "arrow_time_limit_sec")
     mcq_limit = _normalize_time_limit_seconds(payload.mcq_time_limit_sec, "mcq_time_limit_sec")
     text_entry_limit = _normalize_time_limit_seconds(payload.text_entry_time_limit_sec, "text_entry_time_limit_sec")
+    normalized_start_time = _normalize_survey_datetime(payload.start_time)
+    normalized_end_time = _normalize_survey_datetime(payload.end_time)
 
     if payload.id is None:
-        _validate_survey_time_range(payload.start_time, payload.end_time)
+        _validate_survey_time_range(normalized_start_time, normalized_end_time)
         survey = Survey(
             name=payload.name,
             token=_generate_unique_survey_token(db=db),
             created_by=current_user.id,
-            start_time=payload.start_time,
-            end_time=payload.end_time,
+            start_time=normalized_start_time,
+            end_time=normalized_end_time,
             status=(payload.status.value if payload.status is not None else "pending"),
             arrow_time_limit_sec=arrow_limit,
             mcq_time_limit_sec=mcq_limit,
@@ -133,8 +140,8 @@ def _upsert_survey(db: Session, payload: SurveyCreateRequest, current_user: User
             detail="You do not have permission to update this survey",
         )
 
-    start_time = payload.start_time if payload.start_time is not None else survey.start_time
-    end_time = payload.end_time if payload.end_time is not None else survey.end_time
+    start_time = normalized_start_time if payload.start_time is not None else survey.start_time
+    end_time = normalized_end_time if payload.end_time is not None else survey.end_time
     _validate_survey_time_range(start_time, end_time)
 
     survey.name = payload.name
@@ -391,26 +398,29 @@ def _format_decimal(value: float) -> str:
     return f"{value:.2f}".rstrip("0").rstrip(".")
 
 
+def _format_mcq_option_label(answer: Answer) -> str:
+    if answer.selected_option is not None and answer.selected_option.order_index is not None:
+        return f"Option {int(answer.selected_option.order_index)}"
+    if answer.selected_option_id is not None:
+        return "Option (deleted)"
+    return ""
+
+
 def _format_answer_summary(question_type: str, answers: List[Answer]) -> str:
     if not answers:
         return "(no answer)"
 
     if question_type == "mcq":
-        option_orders = []
-        option_ids = []
+        option_labels = []
         for answer in answers:
             if answer.selected_option_id is None:
                 continue
-            option_ids.append(str(answer.selected_option_id))
-            if answer.selected_option is not None and answer.selected_option.order_index is not None:
-                option_orders.append(int(answer.selected_option.order_index))
+            label = _format_mcq_option_label(answer)
+            if label:
+                option_labels.append(label)
 
-        option_orders = sorted(set(option_orders))
-        if option_orders:
-            return ", ".join([f"Option {order}" for order in option_orders])
-
-        option_ids = sorted(set(option_ids))
-        return ", ".join(option_ids) if option_ids else "(no answer)"
+        option_labels = _unique_preserve_order(option_labels)
+        return ", ".join(option_labels) if option_labels else "(no answer)"
 
     if question_type == "arrow":
         parts = []
@@ -585,10 +595,8 @@ def export_question_responses_csv(db: Session, survey_id: UUID, question_id: UUI
 
             if answer is not None:
                 answer_id = _to_csv_value(answer.id)
-                if answer.selected_option is not None and answer.selected_option.order_index is not None:
-                    selected_option = f"Option {answer.selected_option.order_index}"
-                elif answer.selected_option_id is not None:
-                    selected_option = _to_csv_value(answer.selected_option_id)
+                if answer.selected_option_id is not None:
+                    selected_option = _format_mcq_option_label(answer)
                 text_answer = _to_csv_value(answer.text_answer)
                 user_angle = _to_csv_value(answer.user_angle)
                 if answer.angle_deviation is not None:
@@ -711,7 +719,7 @@ def export_survey_responses_csv(db: Session, survey_id: UUID, current_user: User
         for answer in answers:
             answers_by_attempt_question[(answer.attempt_id, answer.question_id)].append(answer)
 
-    headers = [
+    base_headers = [
         "survey_id",
         "survey_name",
         "participant_id",
@@ -726,24 +734,23 @@ def export_survey_responses_csv(db: Session, survey_id: UUID, current_user: User
         "attempt_end_time",
         "attempt_status",
         "completion_percentage",
-        "block_id",
-        "block_name",
-        "block_duration_seconds",
-        "question_id",
-        "question_order",
-        "question_title",
-        "question_type",
-        "answer_summary",
-        "answered_at",
-        "response_time_sec",
-        "answer_id",
-        "selected_option",
-        "text_answer",
-        "user_angle",
-        "correct_angle",
-        "tolerance",
-        "angle_variance",
     ]
+
+    question_headers = []
+    for index, _ in enumerate(questions, start=1):
+        prefix = f"Q{index}"
+        question_headers.extend(
+            [
+                f"{prefix}_Order",
+                f"{prefix}_Type",
+                f"{prefix}_Title",
+                f"{prefix}_Answer",
+                f"{prefix}_Answered_At",
+                f"{prefix}_Response_Time_Sec",
+            ]
+        )
+
+    headers = base_headers + question_headers
 
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=headers)
@@ -752,8 +759,25 @@ def export_survey_responses_csv(db: Session, survey_id: UUID, current_user: User
     for attempt in attempts:
         participant = attempt.participant
         previous_answered_at = None
+        row_data = {
+            "survey_id": _to_csv_value(survey.id),
+            "survey_name": _to_csv_value(survey.name),
+            "participant_id": _to_csv_value(participant.id if participant else None),
+            "participant_code": _to_csv_value(participant.code if participant else None),
+            "consent_answer": _to_csv_value(participant.consent if participant else None),
+            "participant_name": _to_csv_value(participant.name if participant else None),
+            "school": _to_csv_value(participant.school if participant else None),
+            "grade": _to_csv_value(participant.grade if participant else None),
+            "dob": _to_csv_value(participant.dob if participant else None),
+            "attempt_id": _to_csv_value(attempt.id),
+            "attempt_start_time": _to_csv_value(attempt.start_time),
+            "attempt_end_time": _to_csv_value(attempt.end_time),
+            "attempt_status": _to_csv_value(attempt.status),
+            "completion_percentage": _to_csv_value(attempt.completion_percentage),
+        }
 
-        for question in questions:
+        for index, question in enumerate(questions, start=1):
+            prefix = f"Q{index}"
             answer_rows = answers_by_attempt_question.get((attempt.id, question.id), [])
             non_empty_answers = [answer for answer in answer_rows if _is_non_empty_answer(answer)]
 
@@ -769,33 +793,18 @@ def export_survey_responses_csv(db: Session, survey_id: UUID, current_user: User
                     response_time_sec = round(max(elapsed, 0.0), 2)
                 previous_answered_at = answered_at
 
-            answer_id_values = [str(answer.id) for answer in answer_rows]
-            answer_id = "|".join(_unique_preserve_order(answer_id_values)) if answer_id_values else ""
-
-            selected_option = ""
-            text_answer = ""
-            user_angle = ""
-            correct_angle = question.config.correct_angle if question.config else None
-            tolerance = question.config.tolerance if question.config else None
-            angle_variance = ""
-
             if question.type == "mcq":
                 option_values = []
                 for answer in non_empty_answers:
-                    if answer.selected_option is not None and answer.selected_option.order_index is not None:
-                        option_values.append(f"Option {answer.selected_option.order_index}")
-                    elif answer.selected_option_id is not None:
-                        option_values.append(str(answer.selected_option_id))
+                    if answer.selected_option_id is None:
+                        continue
+                    label = _format_mcq_option_label(answer)
+                    if label:
+                        option_values.append(label)
                 option_values = _unique_preserve_order(option_values)
-                selected_option = ", ".join(option_values) if option_values else "(no answer)"
-                text_answer = "N/A"
-                user_angle = "N/A"
-                correct_angle = "N/A"
-                tolerance = "N/A"
-                angle_variance = "N/A"
+                answer_value = ", ".join(option_values) if option_values else "(no answer)"
 
             elif question.type == "text_entry":
-                selected_option = "N/A"
                 text_values = _unique_preserve_order(
                     [
                         answer.text_answer.strip()
@@ -803,16 +812,9 @@ def export_survey_responses_csv(db: Session, survey_id: UUID, current_user: User
                         if isinstance(answer.text_answer, str) and answer.text_answer.strip() != ""
                     ]
                 )
-                text_answer = " | ".join(text_values) if text_values else "(no answer)"
-                user_angle = "N/A"
-                correct_angle = "N/A"
-                tolerance = "N/A"
-                angle_variance = "N/A"
+                answer_value = " | ".join(text_values) if text_values else "(no answer)"
 
             elif question.type == "arrow":
-                selected_option = "N/A"
-                text_answer = "N/A"
-
                 angle_values = []
                 deviation_values = []
                 for answer in non_empty_answers:
@@ -829,51 +831,20 @@ def export_survey_responses_csv(db: Session, survey_id: UUID, current_user: User
                 angle_values = _unique_preserve_order(angle_values)
                 deviation_values = _unique_preserve_order(deviation_values)
 
-                user_angle = ", ".join(angle_values) if angle_values else "(no answer)"
-                angle_variance = ", ".join(deviation_values) if deviation_values else "(no answer)"
+                angle_text = ", ".join(angle_values) if angle_values else "(no answer)"
+                deviation_text = ", ".join(deviation_values) if deviation_values else "(no answer)"
+                answer_value = f"Angle: {angle_text} | Deviation: {deviation_text}"
             else:
-                selected_option = "(no answer)"
-                text_answer = "(no answer)"
-                user_angle = "(no answer)"
-                angle_variance = "(no answer)"
+                answer_value = _format_answer_summary(question.type, non_empty_answers)
 
-            writer.writerow(
-                {
-                    "survey_id": _to_csv_value(survey.id),
-                    "survey_name": _to_csv_value(survey.name),
-                    "participant_id": _to_csv_value(participant.id if participant else None),
-                    "participant_code": _to_csv_value(participant.code if participant else None),
-                    "consent_answer": _to_csv_value(participant.consent if participant else None),
-                    "participant_name": _to_csv_value(participant.name if participant else None),
-                    "school": _to_csv_value(participant.school if participant else None),
-                    "grade": _to_csv_value(participant.grade if participant else None),
-                    "dob": _to_csv_value(participant.dob if participant else None),
-                    "attempt_id": _to_csv_value(attempt.id),
-                    "attempt_start_time": _to_csv_value(attempt.start_time),
-                    "attempt_end_time": _to_csv_value(attempt.end_time),
-                    "attempt_status": _to_csv_value(attempt.status),
-                    "completion_percentage": _to_csv_value(attempt.completion_percentage),
-                    "block_id": _to_csv_value(question.type),
-                    "block_name": _to_csv_value(_question_block_name(question.type)),
-                    "block_duration_seconds": _to_csv_value(
-                        _question_block_duration_seconds(survey=survey, question_type=question.type)
-                    ),
-                    "question_id": _to_csv_value(question.id),
-                    "question_order": _to_csv_value(question.order_index),
-                    "question_title": _to_csv_value(question.title),
-                    "question_type": _to_csv_value(question.type),
-                    "answer_summary": _to_csv_value(_format_answer_summary(question.type, non_empty_answers)),
-                    "answered_at": _to_csv_value(answered_at),
-                    "response_time_sec": _to_csv_value(response_time_sec),
-                    "answer_id": _to_csv_value(answer_id),
-                    "selected_option": _to_csv_value(selected_option),
-                    "text_answer": _to_csv_value(text_answer),
-                    "user_angle": _to_csv_value(user_angle),
-                    "correct_angle": _to_csv_value(correct_angle),
-                    "tolerance": _to_csv_value(tolerance),
-                    "angle_variance": _to_csv_value(angle_variance),
-                }
-            )
+            row_data[f"{prefix}_Order"] = _to_csv_value(question.order_index)
+            row_data[f"{prefix}_Type"] = _to_csv_value(question.type)
+            row_data[f"{prefix}_Title"] = _to_csv_value(question.title)
+            row_data[f"{prefix}_Answer"] = _to_csv_value(answer_value)
+            row_data[f"{prefix}_Answered_At"] = _to_csv_value(answered_at)
+            row_data[f"{prefix}_Response_Time_Sec"] = _to_csv_value(response_time_sec)
+
+        writer.writerow(row_data)
 
     filename = f"survey_{survey.id}_all_questions_responses.csv"
     return output.getvalue().encode("utf-8-sig"), filename

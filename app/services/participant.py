@@ -1,4 +1,3 @@
-from datetime import datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -7,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.survey import Answer, Attempt, Participant, Question, QuestionOption, Survey
 from app.schemas.participant import ParticipantAnswerSubmitRequest, ParticipantSubmitRequest
+from app.utils.timezone import now_canberra_naive
 
 
 def get_participant_by_survey_and_code(db: Session, survey_id, code: str):
@@ -39,7 +39,7 @@ def _ensure_survey_active(survey: Survey):
 
 
 def _ensure_survey_answer_window_open(survey: Survey):
-    now = datetime.utcnow()
+    now = now_canberra_naive()
     if survey.start_time and now < survey.start_time:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -483,7 +483,7 @@ def submit_participant(db: Session, payload: ParticipantSubmitRequest):
     attempt = Attempt(
         survey_id=payload.survey_id,
         participant_id=participant.id,
-        start_time=datetime.utcnow(),
+        start_time=now_canberra_naive(),
         status="in_progress",
         completion_percentage=0,
     )
@@ -583,7 +583,7 @@ def done_attempt(db: Session, attempt_id: UUID):
     attempt.completion_percentage = completion_percentage
     attempt.status = "completed"
     if attempt.end_time is None:
-        attempt.end_time = datetime.utcnow()
+        attempt.end_time = now_canberra_naive()
 
     db.commit()
     db.refresh(attempt)
