@@ -746,6 +746,8 @@ def export_survey_responses_csv(db: Session, survey_id: UUID, current_user: User
                 f"{prefix}_Type",
                 f"{prefix}_Title",
                 f"{prefix}_Answer",
+                f"{prefix}_Angle_Answer",
+                f"{prefix}_Deviation_Answer",
                 f"{prefix}_Answered_At",
                 f"{prefix}_Response_Time_Sec",
             ]
@@ -781,6 +783,9 @@ def export_survey_responses_csv(db: Session, survey_id: UUID, current_user: User
             prefix = f"Q{index}"
             answer_rows = answers_by_attempt_question.get((attempt.id, question.id), [])
             non_empty_answers = [answer for answer in answer_rows if _is_non_empty_answer(answer)]
+            angle_answer_value = ""
+            deviation_answer_value = ""
+            correct_angle = question.config.correct_angle if question.config else None
 
             answered_at = None
             if non_empty_answers:
@@ -820,21 +825,24 @@ def export_survey_responses_csv(db: Session, survey_id: UUID, current_user: User
                 deviation_values = []
                 for answer in non_empty_answers:
                     if answer.user_angle is not None:
-                        angle_values.append(f"{_format_decimal(float(answer.user_angle))}deg")
+                        angle_values.append(_format_decimal(float(answer.user_angle)))
 
                     if answer.angle_deviation is not None:
-                        deviation_values.append(f"{_format_decimal(float(answer.angle_deviation))}deg")
+                        deviation_values.append(_format_decimal(float(answer.angle_deviation)))
                     elif answer.user_angle is not None and correct_angle is not None:
                         computed_deviation = _compute_arrow_deviation(answer.user_angle, correct_angle)
                         if computed_deviation is not None:
-                            deviation_values.append(f"{_format_decimal(float(computed_deviation))}deg")
+                            deviation_values.append(_format_decimal(float(computed_deviation)))
 
                 angle_values = _unique_preserve_order(angle_values)
                 deviation_values = _unique_preserve_order(deviation_values)
 
-                angle_text = ", ".join(angle_values) if angle_values else "(no answer)"
-                deviation_text = ", ".join(deviation_values) if deviation_values else "(no answer)"
-                answer_value = f"Angle: {angle_text} | Deviation: {deviation_text}"
+                angle_answer_value = ", ".join(angle_values)
+                deviation_answer_value = ", ".join(deviation_values)
+                if angle_answer_value and deviation_answer_value:
+                    answer_value = f"{angle_answer_value} | {deviation_answer_value}"
+                else:
+                    answer_value = angle_answer_value or deviation_answer_value or "(no answer)"
             else:
                 answer_value = _format_answer_summary(question.type, non_empty_answers)
 
@@ -842,6 +850,8 @@ def export_survey_responses_csv(db: Session, survey_id: UUID, current_user: User
             row_data[f"{prefix}_Type"] = _to_csv_value(question.type)
             row_data[f"{prefix}_Title"] = _to_csv_value(question.title)
             row_data[f"{prefix}_Answer"] = _to_csv_value(answer_value)
+            row_data[f"{prefix}_Angle_Answer"] = _to_csv_value(angle_answer_value)
+            row_data[f"{prefix}_Deviation_Answer"] = _to_csv_value(deviation_answer_value)
             row_data[f"{prefix}_Answered_At"] = _to_csv_value(answered_at)
             row_data[f"{prefix}_Response_Time_Sec"] = _to_csv_value(response_time_sec)
 
