@@ -128,6 +128,10 @@ class SurveyDeleteResponse(BaseModel):
     detail: str
 
 
+class SurveyCopyRequest(BaseModel):
+    name: Optional[str] = None
+
+
 class SurveyListItemResponse(BaseModel):
     id: UUID
     name: str

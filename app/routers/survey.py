@@ -18,6 +18,7 @@ from app.schemas.survey import (
 
 from app.services.auth import get_current_user
 from app.services.survey import (
+    copy_survey,
     create_survey,
     delete_survey,
     export_question_responses_csv,
@@ -132,5 +133,15 @@ def generate_token(
 @router.get("/{token}/show", response_model=SurveyShowByTokenResponse)
 def show_by_token(token: str, db: Session = Depends(get_db)):
     survey = get_survey_by_token_show(db=db, token=token)
+    return survey
+
+
+@router.post("/{survey_id}/copy", response_model=SurveyCreateResponse, status_code=status.HTTP_201_CREATED)
+def copy(
+    survey_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    survey = copy_survey(db=db, survey_id=survey_id, current_user=current_user)
     return survey
 

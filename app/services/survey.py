@@ -1,6 +1,7 @@
 import uuid
 import csv
 import io
+import copy
 from collections import defaultdict
 from datetime import date, datetime
 from typing import Dict, List
@@ -1116,6 +1117,106 @@ def generate_survey_token(db: Session, survey_id: UUID, current_user: User):
     db.refresh(survey)
 
     return survey
+
+
+def copy_survey(db: Session, survey_id: UUID, current_user: User):
+    source_survey = (
+        db.query(Survey)
+        .options(
+            selectinload(Survey.questions).selectinload(Question.options),
+            selectinload(Survey.questions).selectinload(Question.config),
+        )
+        .filter(Survey.id == survey_id, Survey.created_by == current_user.id)
+        .first()
+    )
+
+    if not source_survey:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Survey not found",
+        )
+
+    cloned_name = f"{source_survey.name} (Copy)"
+
+    try:
+        cloned_survey = Survey(
+            name=cloned_name,
+            token=_generate_unique_survey_token(db=db),
+            created_by=current_user.id,
+            start_time=source_survey.start_time,
+            end_time=source_survey.end_time,
+            status="pending",
+            arrow_time_limit_sec=source_survey.arrow_time_limit_sec,
+            mcq_time_limit_sec=source_survey.mcq_time_limit_sec,
+            text_entry_time_limit_sec=source_survey.text_entry_time_limit_sec,
+            participant_form_config=copy.deepcopy(source_survey.participant_form_config),
+        )
+        db.add(cloned_survey)
+        db.flush()
+
+        ordered_questions = sorted(
+            source_survey.questions,
+            key=lambda item: (
+                item.order_index if item.order_index is not None else 0,
+                item.created_at if item.created_at is not None else datetime.min,
+            ),
+        )
+        for source_question in ordered_questions:
+            cloned_question = Question(
+                survey_id=cloned_survey.id,
+                type=source_question.type,
+                title=source_question.title,
+                question_image=source_question.question_image,
+                is_visible=source_question.is_visible,
+                is_required=source_question.is_required,
+                allow_multiple_selection=source_question.allow_multiple_selection,
+                order_index=source_question.order_index,
+            )
+            db.add(cloned_question)
+            db.flush()
+
+            if source_question.type == "mcq":
+                ordered_options = sorted(
+                    source_question.options,
+                    key=lambda item: item.order_index if item.order_index is not None else 0,
+                )
+                for source_option in ordered_options:
+                    db.add(
+                        QuestionOption(
+                            question_id=cloned_question.id,
+                            image_url=source_option.image_url,
+                            order_index=source_option.order_index,
+                        )
+                    )
+
+            if source_question.type == "arrow" and source_question.config is not None:
+                db.add(
+                    QuestionConfig(
+                        question_id=cloned_question.id,
+                        correct_angle=source_question.config.correct_angle,
+                        tolerance=source_question.config.tolerance,
+                        standing_position=source_question.config.standing_position,
+                        looking_direction=source_question.config.looking_direction,
+                    )
+                )
+
+        db.commit()
+        copied_survey = (
+            db.query(Survey)
+            .options(
+                selectinload(Survey.questions).selectinload(Question.options),
+                selectinload(Survey.questions).selectinload(Question.config),
+            )
+            .filter(Survey.id == cloned_survey.id)
+            .first()
+        )
+        return copied_survey
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise
 
 
 def delete_survey(db: Session, survey_id: UUID, current_user: User):
